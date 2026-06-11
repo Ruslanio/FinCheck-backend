@@ -4,6 +4,8 @@ build/
 
 # Credentials — never commit
 .env
+*.env
+local.properties
 
 # IntelliJ IDEA
 .idea/
