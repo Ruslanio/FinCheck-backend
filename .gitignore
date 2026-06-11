@@ -1,0 +1,19 @@
+# Build
+.gradle/
+build/
+
+# Credentials — never commit
+.env
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# macOS
+.DS_Store
+
+# Gradle wrapper jar (checked in by convention, but exclude if not)
+# gradle/wrapper/gradle-wrapper.jar
