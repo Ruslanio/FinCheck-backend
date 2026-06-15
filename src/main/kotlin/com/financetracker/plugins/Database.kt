@@ -13,13 +13,14 @@ private lateinit var dataSource: HikariDataSource
 
 fun Application.configureDatabase() {
     val config = environment.config
-    val hikariConfig = HikariConfig().apply {
-        jdbcUrl = config.property("database.url").getString()
-        username = config.property("database.user").getString()
-        password = config.property("database.password").getString()
-        maximumPoolSize = config.property("database.poolSize").getString().toInt()
-        driverClassName = "org.postgresql.Driver"
-    }
+    val hikariConfig =
+        HikariConfig().apply {
+            jdbcUrl = config.property("database.url").getString()
+            username = config.property("database.user").getString()
+            password = config.property("database.password").getString()
+            maximumPoolSize = config.property("database.poolSize").getString().toInt()
+            driverClassName = "org.postgresql.Driver"
+        }
     dataSource = HikariDataSource(hikariConfig)
 
     Flyway.configure()
@@ -30,8 +31,9 @@ fun Application.configureDatabase() {
     Database.connect(dataSource)
 }
 
-suspend fun pingDatabase(): Boolean = withContext(Dispatchers.IO) {
-    runCatching {
-        transaction { exec("SELECT 1") }
-    }.isSuccess
-}
+suspend fun pingDatabase(): Boolean =
+    withContext(Dispatchers.IO) {
+        runCatching {
+            transaction { exec("SELECT 1") }
+        }.isSuccess
+    }

@@ -8,8 +8,9 @@ import io.ktor.server.routing.get
 
 fun Route.healthRoutes(dbPing: suspend () -> Boolean) {
     get("/health") {
-        val version = call.application.environment.config
-            .propertyOrNull("app.version")?.getString() ?: "dev"
+        val version =
+            call.application.environment.config
+                .propertyOrNull("app.version")?.getString() ?: "dev"
         if (dbPing()) {
             call.respond(HttpStatusCode.OK, HealthResponse("ok", "ok", version))
         } else {

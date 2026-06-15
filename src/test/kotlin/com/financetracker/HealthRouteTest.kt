@@ -13,24 +13,26 @@ import kotlin.test.assertEquals
 class HealthRouteTest {
 
     @Test
-    fun `returns 200 and ok status when DB is reachable`() = testApplication {
-        application {
-            configureSerialization()
-            configureRouting(dbPing = { true })
+    fun `returns 200 and ok status when DB is reachable`() =
+        testApplication {
+            application {
+                configureSerialization()
+                configureRouting(dbPing = { true })
+            }
+            val response = client.get("/health")
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertContains(response.bodyAsText(), "\"ok\"")
         }
-        val response = client.get("/health")
-        assertEquals(HttpStatusCode.OK, response.status)
-        assertContains(response.bodyAsText(), "\"ok\"")
-    }
 
     @Test
-    fun `returns 503 and degraded status when DB is unreachable`() = testApplication {
-        application {
-            configureSerialization()
-            configureRouting(dbPing = { false })
+    fun `returns 503 and degraded status when DB is unreachable`() =
+        testApplication {
+            application {
+                configureSerialization()
+                configureRouting(dbPing = { false })
+            }
+            val response = client.get("/health")
+            assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+            assertContains(response.bodyAsText(), "\"degraded\"")
         }
-        val response = client.get("/health")
-        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
-        assertContains(response.bodyAsText(), "\"degraded\"")
-    }
 }
