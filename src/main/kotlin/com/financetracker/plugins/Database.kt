@@ -9,8 +9,6 @@ import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.transaction
 
-private lateinit var dataSource: HikariDataSource
-
 fun Application.configureDatabase() {
     val config = environment.config
     val hikariConfig =
@@ -21,7 +19,7 @@ fun Application.configureDatabase() {
             maximumPoolSize = config.property("database.poolSize").getString().toInt()
             driverClassName = "org.postgresql.Driver"
         }
-    dataSource = HikariDataSource(hikariConfig)
+    val dataSource = HikariDataSource(hikariConfig)
 
     Flyway.configure()
         .dataSource(dataSource)
