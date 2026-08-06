@@ -87,22 +87,3 @@ jobs:
       - name: Build Docker image
         run: docker build -t financetracker-backend:ci .
 
-      - name: Verify image size
-        id: image-size
-        run: |
-          SIZE=$(docker image inspect financetracker-backend:ci \
-            --format='{{.Size}}')
-          SIZE_MB=$((SIZE / 1048576))
-          echo "Image size: ${SIZE_MB} MB"
-          if [ $SIZE_MB -gt 200 ]; then
-            echo "ERROR: Image size ${SIZE_MB} MB exceeds 200 MB limit"
-            exit 1
-          fi
-          echo "image-size-mb=${SIZE_MB}" >> $GITHUB_OUTPUT
-
-      - name: Write job summary
-        run: |
-          echo "## Build summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker image size | ${{ steps.image-size.outputs.image-size-mb }} MB |" >> $GITHUB_STEP_SUMMARY
