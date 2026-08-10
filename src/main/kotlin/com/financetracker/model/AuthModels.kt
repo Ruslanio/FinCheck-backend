@@ -22,7 +22,17 @@ data class LoginResponse(
 data class RefreshRequest(val refreshToken: String)
 
 @Serializable
-data class LogoutRequest(val refreshToken: String)
+data class LogoutRequest(
+    val refreshToken: String,
+    val accessToken: String,
+)
+
+@Serializable
+data class SessionData(
+    val userId: String,
+    val email: String,
+    val createdAt: String,
+)
 
 @Serializable
 data class ErrorResponse(val error: String)
