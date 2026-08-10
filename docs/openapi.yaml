@@ -1,0 +1,143 @@
+openapi: 3.1.0
+info:
+  title: FinanceTracker API
+  version: 0.1.0
+  description: Backend API for the FinanceTracker Android app.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      operationId: register
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error (invalid email or password too short)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_email:
+                  value: { error: invalid_email }
+                password_too_short:
+                  value: { error: password_too_short }
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                email_already_registered:
+                  value: { error: email_already_registered }
+
+  /auth/login:
+    post:
+      summary: Authenticate and receive tokens
+      operationId: login
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_credentials:
+                  value: { error: invalid_credentials }
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          example: password123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          example: password123
+
+    RegisterResponse:
+      type: object
+      required: [userId, email]
+      properties:
+        userId:
+          type: string
+          format: uuid
+          example: 5d37b405-cfaf-4dc1-9e6e-ac1989d5cd39
+        email:
+          type: string
+          format: email
+          example: user@example.com
+
+    LoginResponse:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+          description: HS256-signed JWT, valid for 15 minutes
+          example: eyJhbGciOiJIUzI1NiJ9...
+        refreshToken:
+          type: string
+          format: uuid
+          description: Opaque UUID; exchange via POST /auth/refresh (Task 9)
+          example: 9d4a6870-80af-4ab2-9ca8-93cffa33423d
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds
+          example: 900
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: invalid_credentials

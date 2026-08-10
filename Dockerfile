@@ -9,6 +9,7 @@ FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build /app/build/libs/*-all.jar app.jar
+COPY --from=build /app/src/main/resources/db/migration /app/migration
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=15s \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
