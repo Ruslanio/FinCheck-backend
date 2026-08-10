@@ -201,12 +201,16 @@ components:
 
     LogoutRequest:
       type: object
-      required: [refreshToken]
+      required: [refreshToken, accessToken]
       properties:
         refreshToken:
           type: string
           format: uuid
           example: 9d4a6870-80af-4ab2-9ca8-93cffa33423d
+        accessToken:
+          type: string
+          description: Access token to revoke from the session cache
+          example: eyJhbGciOiJIUzI1NiJ9...
 
     ErrorResponse:
       type: object

@@ -100,7 +100,7 @@ fun Application.configureAuthRouting(authService: AuthService = AuthService()) {
                         return@post
                     }
                 try {
-                    when (authService.logout(req.refreshToken)) {
+                    when (authService.logout(req.refreshToken, req.accessToken)) {
                         LogoutResult.Success ->
                             call.respond(HttpStatusCode.NoContent)
                         LogoutResult.AlreadyRevoked ->

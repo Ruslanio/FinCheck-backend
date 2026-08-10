@@ -151,12 +151,12 @@ class AuthRefreshRouteTest {
                 configureSerialization()
                 configureAuthRouting(authService)
             }
-            coEvery { authService.logout("active-token") } returns LogoutResult.Success
+            coEvery { authService.logout("active-token", any()) } returns LogoutResult.Success
 
             val response =
                 client.post("/auth/logout") {
                     header(HttpHeaders.ContentType, "application/json")
-                    setBody("""{"refreshToken":"active-token"}""")
+                    setBody("""{"refreshToken":"active-token","accessToken":"some-access-token"}""")
                 }
 
             assertEquals(HttpStatusCode.NoContent, response.status)
@@ -170,12 +170,12 @@ class AuthRefreshRouteTest {
                 configureSerialization()
                 configureAuthRouting(authService)
             }
-            coEvery { authService.logout("revoked-token") } returns LogoutResult.AlreadyRevoked
+            coEvery { authService.logout("revoked-token", any()) } returns LogoutResult.AlreadyRevoked
 
             val response =
                 client.post("/auth/logout") {
                     header(HttpHeaders.ContentType, "application/json")
-                    setBody("""{"refreshToken":"revoked-token"}""")
+                    setBody("""{"refreshToken":"revoked-token","accessToken":"some-access-token"}""")
                 }
 
             assertEquals(HttpStatusCode.Unauthorized, response.status)

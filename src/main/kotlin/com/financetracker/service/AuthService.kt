@@ -4,6 +4,8 @@ import com.financetracker.model.LoginResponse
 import com.financetracker.model.LoginResult
 import com.financetracker.model.RegisterResponse
 import com.financetracker.model.RegisterResult
+import com.financetracker.model.SessionData
+import com.financetracker.redis.RedisClient
 import com.financetracker.repository.RefreshTokenRepository
 import com.financetracker.repository.UserRepository
 import com.financetracker.util.JwtUtil
@@ -89,6 +91,16 @@ open class AuthService(
             }
         }
 
+        withContext(Dispatchers.IO) {
+            val sessionData =
+                SessionData(
+                    userId = user.id.toString(),
+                    email = user.email,
+                    createdAt = Clock.System.now().toString(),
+                )
+            RedisClient.setSession(token = accessToken, data = sessionData)
+        }
+
         return LoginResult.Success(
             LoginResponse(
                 accessToken = accessToken,
@@ -126,8 +138,11 @@ open class AuthService(
         }
     }
 
-    open suspend fun logout(rawToken: String): LogoutResult {
-        val hash = sha256(rawToken)
+    open suspend fun logout(
+        refreshToken: String,
+        accessToken: String,
+    ): LogoutResult {
+        val hash = sha256(refreshToken)
         val activeToken =
             withContext(Dispatchers.IO) {
                 transaction { refreshTokenRepository.findActiveByTokenHash(hash) }
@@ -143,6 +158,9 @@ open class AuthService(
 
         withContext(Dispatchers.IO) {
             transaction { refreshTokenRepository.revoke(hash) }
+        }
+        withContext(Dispatchers.IO) {
+            RedisClient.deleteSession(accessToken)
         }
         return LogoutResult.Success
     }

@@ -3,7 +3,9 @@
 ## Overview
 
 The API uses a short-lived JWT access token paired with a long-lived refresh token.
-Passwords are never stored in plaintext.
+Passwords are never stored in plaintext. Active sessions are cached in Redis for fast
+lookup; the database is the source of truth and requests fall through to it if Redis
+is unavailable.
 
 ---
 
@@ -35,7 +37,8 @@ Creates a new user account.
 
 ### POST /auth/login
 
-Authenticates an existing user and issues tokens.
+Authenticates an existing user and issues tokens. Writes a session entry to Redis
+immediately after issuing the access token.
 
 **Request**
 ```json
@@ -53,12 +56,69 @@ Authenticates an existing user and issues tokens.
 
 **Errors**
 
-| Status | `error` field        | Condition                           |
-|--------|----------------------|-------------------------------------|
-| 401    | `invalid_credentials`| Wrong password or unknown email     |
+| Status | `error` field         | Condition                        |
+|--------|-----------------------|----------------------------------|
+| 401    | `invalid_credentials` | Wrong password or unknown email  |
 
-Wrong password and unknown email return the same error intentionally — the
-response must not reveal which field is wrong.
+Wrong password and unknown email return the same error — the response must not
+reveal which field is wrong.
+
+---
+
+### POST /auth/refresh
+
+Rotates the refresh token atomically: the old token is revoked and a new one is
+inserted in a single database transaction. Returns a new access token and a new
+refresh token. The old refresh token cannot be used again.
+
+**Request**
+```json
+{ "refreshToken": "<uuid>" }
+```
+
+**Success — 200** — same shape as login response
+```json
+{
+  "accessToken": "<new-jwt>",
+  "refreshToken": "<new-uuid>",
+  "expiresIn": 900
+}
+```
+
+**Errors**
+
+| Status | `error` field           | Condition                              |
+|--------|-------------------------|----------------------------------------|
+| 401    | `invalid_refresh_token` | Token not found in DB                  |
+| 401    | `token_revoked`         | Token was already used or revoked      |
+| 401    | `token_expired`         | Token's 30-day lifetime has passed     |
+
+---
+
+### POST /auth/logout
+
+Revokes the refresh token and deletes the Redis session entry for the access token.
+
+**Request**
+```json
+{
+  "refreshToken": "<uuid>",
+  "accessToken": "<jwt>"
+}
+```
+
+Both fields are required. `accessToken` is needed to remove the session cache entry.
+
+**Success — 204** — no body
+
+**Errors**
+
+| Status | `error` field   | Condition                                  |
+|--------|-----------------|--------------------------------------------|
+| 401    | `token_revoked` | Token already revoked or not found in DB   |
+
+Both "already revoked" and "never existed" return the same error to avoid revealing
+token existence.
 
 ---
 
@@ -76,7 +136,27 @@ response must not reveal which field is wrong.
 - The raw UUID is returned to the client once and never stored.
 - A SHA-256 hex digest of the UUID is stored in the `refresh_tokens` table.
 - Lifetime: 30 days from issuance.
-- Rotation and revocation are implemented in Task 9 (`POST /auth/refresh`).
+- Rotation is atomic: revoke + insert happen in one DB transaction with no window
+  where both old and new tokens are valid simultaneously.
+
+---
+
+## Redis session cache
+
+After a successful login, a session entry is written to Redis:
+
+- **Key**: `session:{rawAccessToken}`
+- **Type**: HSET with fields `userId`, `email`, `createdAt` (ISO-8601 string)
+- **TTL**: 900 seconds, sliding — reset on every read (Task 11 middleware) and on
+  every new write (new login)
+
+The session cache is a performance layer only. If Redis is unreachable:
+- Login and logout still succeed — Redis failures are logged at WARN and swallowed.
+- Session lookups fall through to PostgreSQL (Task 11 middleware handles the fallback).
+- The application never crashes or returns 5xx due to a Redis outage.
+
+On logout, `DEL session:{accessToken}` is called. If Redis is down the key will
+expire naturally after 900 seconds.
 
 ---
 
@@ -111,9 +191,11 @@ curl -s -X POST http://localhost:8080/auth/register \
 
 ## Environment variables
 
-| Variable     | Required | Description                                      |
-|--------------|----------|--------------------------------------------------|
-| `JWT_SECRET` | Yes      | HS256 signing key — minimum 32 characters (256 bits). Never commit a real value. |
+| Variable      | Required | Description                                                                 |
+|---------------|----------|-----------------------------------------------------------------------------|
+| `JWT_SECRET`  | Yes      | HS256 signing key — minimum 32 characters (256 bits). Never commit a real value. |
+| `REDIS_HOST`  | No       | Redis hostname. Defaults to `localhost`.                                    |
+| `REDIS_PORT`  | No       | Redis port. Defaults to `6379`.                                             |
 
-Local dev value is in `.env` (gitignored). CI uses a throwaway value set in
+Local dev values are in `.env` (gitignored). CI uses throwaway values set in
 `.github/workflows/backend-ci.yml`.
