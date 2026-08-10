@@ -21,8 +21,13 @@ fun Application.configureDatabase() {
         }
     val dataSource = HikariDataSource(hikariConfig)
 
+    val migrationsLocation =
+        config.propertyOrNull("database.migrationsLocation")?.getString()
+            ?: "classpath:db/migration"
+
     Flyway.configure()
         .dataSource(dataSource)
+        .locations(migrationsLocation)
         .load()
         .migrate()
 

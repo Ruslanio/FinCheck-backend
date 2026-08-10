@@ -37,12 +37,20 @@ dependencies {
 
     implementation(libs.jedis)
 
+    implementation(libs.bcrypt)
+    implementation(libs.ktor.server.auth)
+    implementation(libs.ktor.server.auth.jwt)
+    implementation(libs.jjwt.api)
+    runtimeOnly(libs.jjwt.impl)
+    runtimeOnly(libs.jjwt.jackson)
+
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.logback.classic)
     implementation(libs.logstash.logback.encoder)
 
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit5)
+    testImplementation(libs.mockk)
 }
 
 tasks.test {
