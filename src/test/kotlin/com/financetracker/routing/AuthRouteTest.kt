@@ -7,7 +7,6 @@ import com.financetracker.model.RegisterResponse
 import com.financetracker.model.RegisterResult
 import com.financetracker.plugins.configureSerialization
 import com.financetracker.service.AuthService
-import com.financetracker.util.JwtUtil
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import io.ktor.client.request.header
@@ -23,6 +22,7 @@ import io.mockk.mockk
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.util.Date
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -135,7 +135,15 @@ class AuthRouteTest {
                 configureAuthRouting(authService)
             }
             val userId = UUID.randomUUID().toString()
-            val realToken = JwtUtil.issueAccessToken(userId)
+            val key = Keys.hmacShaKeyFor(TEST_JWT_SECRET.toByteArray())
+            val now = System.currentTimeMillis()
+            val realToken =
+                Jwts.builder()
+                    .subject(userId)
+                    .issuedAt(Date(now))
+                    .expiration(Date(now + 900_000L))
+                    .signWith(key)
+                    .compact()
             val refreshToken = UUID.randomUUID().toString()
 
             coEvery { authService.login("user@example.com", "password123") } returns
@@ -152,7 +160,6 @@ class AuthRouteTest {
             assertEquals(refreshToken, body.refreshToken)
             assertEquals(900, body.expiresIn)
 
-            val key = Keys.hmacShaKeyFor(TEST_JWT_SECRET.toByteArray())
             val claims =
                 Jwts.parser()
                     .verifyWith(key)
