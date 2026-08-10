@@ -18,6 +18,24 @@ import kotlin.time.Duration.Companion.days
 
 private val EMAIL_REGEX = Regex("^[A-Za-z0-9+_.\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$")
 
+sealed interface RefreshResult {
+    data class Success(val accessToken: String, val refreshToken: String) : RefreshResult
+
+    data object Revoked : RefreshResult
+
+    data object Expired : RefreshResult
+
+    data object Invalid : RefreshResult
+}
+
+sealed interface LogoutResult {
+    data object Success : LogoutResult
+
+    data object AlreadyRevoked : LogoutResult
+
+    data object Invalid : LogoutResult
+}
+
 open class AuthService(
     private val userRepository: UserRepository = UserRepository,
     private val refreshTokenRepository: RefreshTokenRepository = RefreshTokenRepository,
@@ -78,6 +96,55 @@ open class AuthService(
                 expiresIn = 900,
             ),
         )
+    }
+
+    open suspend fun refresh(rawToken: String): RefreshResult {
+        val hash = sha256(rawToken)
+        val tokenRow =
+            withContext(Dispatchers.IO) {
+                transaction { refreshTokenRepository.findAnyByTokenHash(hash) }
+            }
+
+        return when {
+            tokenRow == null -> RefreshResult.Invalid
+            tokenRow.revokedAt != null -> RefreshResult.Revoked
+            tokenRow.expiresAt <= Clock.System.now() -> RefreshResult.Expired
+            else -> {
+                val newRawToken = UUID.randomUUID().toString()
+                val newHash = sha256(newRawToken)
+                val newExpiresAt = Clock.System.now() + 30.days
+
+                val success =
+                    withContext(Dispatchers.IO) {
+                        refreshTokenRepository.revokeAndInsert(hash, tokenRow.userId, newHash, newExpiresAt)
+                    }
+                if (!success) return RefreshResult.Revoked
+
+                val accessToken = JwtUtil.issueAccessToken(tokenRow.userId.toString())
+                RefreshResult.Success(accessToken, newRawToken)
+            }
+        }
+    }
+
+    open suspend fun logout(rawToken: String): LogoutResult {
+        val hash = sha256(rawToken)
+        val activeToken =
+            withContext(Dispatchers.IO) {
+                transaction { refreshTokenRepository.findActiveByTokenHash(hash) }
+            }
+
+        if (activeToken == null) {
+            val anyRow =
+                withContext(Dispatchers.IO) {
+                    transaction { refreshTokenRepository.findAnyByTokenHash(hash) }
+                }
+            return if (anyRow?.revokedAt != null) LogoutResult.AlreadyRevoked else LogoutResult.Invalid
+        }
+
+        withContext(Dispatchers.IO) {
+            transaction { refreshTokenRepository.revoke(hash) }
+        }
+        return LogoutResult.Success
     }
 
     private fun sha256(input: String): String {
