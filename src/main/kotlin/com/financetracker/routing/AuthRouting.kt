@@ -2,10 +2,15 @@ package com.financetracker.routing
 
 import com.financetracker.model.ErrorResponse
 import com.financetracker.model.LoginRequest
+import com.financetracker.model.LoginResponse
 import com.financetracker.model.LoginResult
+import com.financetracker.model.LogoutRequest
+import com.financetracker.model.RefreshRequest
 import com.financetracker.model.RegisterRequest
 import com.financetracker.model.RegisterResult
 import com.financetracker.service.AuthService
+import com.financetracker.service.LogoutResult
+import com.financetracker.service.RefreshResult
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.request.receive
@@ -58,6 +63,53 @@ fun Application.configureAuthRouting(authService: AuthService = AuthService()) {
                     }
                 } catch (e: Exception) {
                     logger.error("Unhandled error in POST /auth/login", e)
+                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("internal_error"))
+                }
+            }
+
+            post("/refresh") {
+                val req =
+                    runCatching { call.receive<RefreshRequest>() }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("invalid_request"))
+                        return@post
+                    }
+                try {
+                    when (val result = authService.refresh(req.refreshToken)) {
+                        is RefreshResult.Success ->
+                            call.respond(
+                                HttpStatusCode.OK,
+                                LoginResponse(result.accessToken, result.refreshToken, 900),
+                            )
+                        RefreshResult.Revoked ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("token_revoked"))
+                        RefreshResult.Expired ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("token_expired"))
+                        RefreshResult.Invalid ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("invalid_refresh_token"))
+                    }
+                } catch (e: Exception) {
+                    logger.error("Unhandled error in POST /auth/refresh", e)
+                    call.respond(HttpStatusCode.InternalServerError, ErrorResponse("internal_error"))
+                }
+            }
+
+            post("/logout") {
+                val req =
+                    runCatching { call.receive<LogoutRequest>() }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("invalid_request"))
+                        return@post
+                    }
+                try {
+                    when (authService.logout(req.refreshToken)) {
+                        LogoutResult.Success ->
+                            call.respond(HttpStatusCode.NoContent)
+                        LogoutResult.AlreadyRevoked ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("token_revoked"))
+                        LogoutResult.Invalid ->
+                            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("token_revoked"))
+                    }
+                } catch (e: Exception) {
+                    logger.error("Unhandled error in POST /auth/logout", e)
                     call.respond(HttpStatusCode.InternalServerError, ErrorResponse("internal_error"))
                 }
             }

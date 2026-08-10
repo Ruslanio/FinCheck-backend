@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
@@ -24,6 +25,7 @@ data class RefreshTokenRow(
     val userId: UUID,
     val tokenHash: String,
     val expiresAt: Instant,
+    val revokedAt: Instant? = null,
 )
 
 object RefreshTokenRepository {
@@ -57,6 +59,44 @@ object RefreshTokenRepository {
                 )
             }
     }
+
+    fun findAnyByTokenHash(tokenHash: String): RefreshTokenRow? =
+        RefreshTokens.selectAll()
+            .where { RefreshTokens.tokenHash eq tokenHash }
+            .singleOrNull()
+            ?.let {
+                RefreshTokenRow(
+                    id = it[RefreshTokens.id],
+                    userId = it[RefreshTokens.userId],
+                    tokenHash = it[RefreshTokens.tokenHash],
+                    expiresAt = it[RefreshTokens.expiresAt],
+                    revokedAt = it[RefreshTokens.revokedAt],
+                )
+            }
+
+    fun revokeAndInsert(
+        oldTokenHash: String,
+        userId: UUID,
+        newTokenHash: String,
+        newExpiresAt: Instant,
+    ): Boolean =
+        transaction {
+            val updated =
+                RefreshTokens.update({
+                    (RefreshTokens.tokenHash eq oldTokenHash) and
+                        RefreshTokens.revokedAt.isNull() and
+                        (RefreshTokens.expiresAt greater Clock.System.now())
+                }) {
+                    it[revokedAt] = Clock.System.now()
+                }
+            if (updated == 0) return@transaction false
+            RefreshTokens.insert {
+                it[RefreshTokens.userId] = userId
+                it[RefreshTokens.tokenHash] = newTokenHash
+                it[RefreshTokens.expiresAt] = newExpiresAt
+            }
+            true
+        }
 
     fun revoke(tokenHash: String) {
         RefreshTokens.update({ RefreshTokens.tokenHash eq tokenHash }) {

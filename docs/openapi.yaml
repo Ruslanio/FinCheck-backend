@@ -76,6 +76,62 @@ paths:
                 invalid_credentials:
                   value: { error: invalid_credentials }
 
+  /auth/refresh:
+    post:
+      summary: Rotate refresh token and issue new access token
+      operationId: refreshToken
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token rotation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Refresh token is invalid, revoked, or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_refresh_token:
+                  value: { error: invalid_refresh_token }
+                token_revoked:
+                  value: { error: token_revoked }
+                token_expired:
+                  value: { error: token_expired }
+
+  /auth/logout:
+    post:
+      summary: Revoke a refresh token
+      operationId: logout
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Token revoked successfully
+        '401':
+          description: Token was already revoked or does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                token_revoked:
+                  value: { error: token_revoked }
+
 components:
   schemas:
     RegisterRequest:
@@ -127,12 +183,30 @@ components:
         refreshToken:
           type: string
           format: uuid
-          description: Opaque UUID; exchange via POST /auth/refresh (Task 9)
+          description: Opaque UUID; exchange via POST /auth/refresh
           example: 9d4a6870-80af-4ab2-9ca8-93cffa33423d
         expiresIn:
           type: integer
           description: Access token lifetime in seconds
           example: 900
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          format: uuid
+          example: 9d4a6870-80af-4ab2-9ca8-93cffa33423d
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          format: uuid
+          example: 9d4a6870-80af-4ab2-9ca8-93cffa33423d
 
     ErrorResponse:
       type: object
