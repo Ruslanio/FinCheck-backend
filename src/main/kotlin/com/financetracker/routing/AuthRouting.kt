@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("AuthRouting")
 
-fun Application.configureAuthRouting(authService: AuthService = AuthService()) {
+fun Application.configureAuthRouting(authService: AuthService) {
     routing {
         route("/auth") {
             post("/register") {

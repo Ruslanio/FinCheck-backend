@@ -14,14 +14,23 @@ object Users : Table("users") {
 
 data class UserRow(val id: UUID, val email: String, val passwordHash: String)
 
-object UserRepository {
-    fun findByEmail(email: String): UserRow? =
+interface UserRepository {
+    fun findByEmail(email: String): UserRow?
+
+    fun insert(
+        email: String,
+        passwordHash: String,
+    ): UUID
+}
+
+class UserRepositoryImpl : UserRepository {
+    override fun findByEmail(email: String): UserRow? =
         Users.selectAll()
             .where { Users.email eq email }
             .singleOrNull()
             ?.let { UserRow(it[Users.id], it[Users.email], it[Users.password]) }
 
-    fun insert(
+    override fun insert(
         email: String,
         passwordHash: String,
     ): UUID {

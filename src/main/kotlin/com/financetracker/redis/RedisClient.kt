@@ -4,30 +4,10 @@ import com.financetracker.model.SessionData
 import org.slf4j.LoggerFactory
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
-import redis.clients.jedis.JedisPoolConfig
 
 private val logger = LoggerFactory.getLogger("RedisClient")
 
-object RedisClient {
-
-    internal var pool: JedisPool? = null
-
-    fun initialize(
-        host: String,
-        port: Int,
-        poolSize: Int,
-        timeoutMs: Int,
-    ) {
-        val config =
-            JedisPoolConfig().apply {
-                maxTotal = poolSize
-                maxIdle = poolSize / 2
-                minIdle = 1
-                testOnBorrow = true
-                testWhileIdle = true
-            }
-        pool = JedisPool(config, host, port, timeoutMs)
-    }
+class RedisClient(private val pool: JedisPool?) {
 
     fun <T> execute(block: (Jedis) -> T): T? =
         runCatching {
@@ -35,10 +15,6 @@ object RedisClient {
         }.onFailure { e ->
             logger.warn("Redis operation failed: ${e.message}")
         }.getOrNull()
-
-    fun close() {
-        pool?.close()
-    }
 
     fun setSession(
         token: String,
