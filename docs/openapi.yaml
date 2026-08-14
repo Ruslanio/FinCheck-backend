@@ -14,6 +14,9 @@ paths:
       summary: Register a new user
       operationId: register
       tags: [auth]
+      description: >
+        Rate-limited to 5 requests per minute per IP.
+        X-RateLimit-* headers are present on every response.
       requestBody:
         required: true
         content:
@@ -23,6 +26,13 @@ paths:
       responses:
         '201':
           description: User created successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
           content:
             application/json:
               schema:
@@ -47,12 +57,17 @@ paths:
               examples:
                 email_already_registered:
                   value: { error: email_already_registered }
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
   /auth/login:
     post:
       summary: Authenticate and receive tokens
       operationId: login
       tags: [auth]
+      description: >
+        Rate-limited to 10 requests per minute per IP.
+        X-RateLimit-* headers are present on every response.
       requestBody:
         required: true
         content:
@@ -62,6 +77,13 @@ paths:
       responses:
         '200':
           description: Authentication successful
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
           content:
             application/json:
               schema:
@@ -75,6 +97,8 @@ paths:
               examples:
                 invalid_credentials:
                   value: { error: invalid_credentials }
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
   /auth/refresh:
     post:
@@ -139,6 +163,9 @@ paths:
       tags: [transactions]
       security:
         - bearerAuth: []
+      description: >
+        Rate-limited to 100 requests per minute per authenticated userId.
+        X-RateLimit-* headers are present on every response.
       parameters:
         - name: page
           in: query
@@ -163,6 +190,13 @@ paths:
       responses:
         '200':
           description: Paginated list of transactions
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
           content:
             application/json:
               schema:
@@ -176,6 +210,8 @@ paths:
               examples:
                 invalid_or_expired_token:
                   value: { error: invalid_or_expired_token }
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
     post:
       summary: Create a transaction
@@ -183,6 +219,9 @@ paths:
       tags: [transactions]
       security:
         - bearerAuth: []
+      description: >
+        Rate-limited to 100 requests per minute per authenticated userId.
+        X-RateLimit-* headers are present on every response.
       requestBody:
         required: true
         content:
@@ -192,6 +231,13 @@ paths:
       responses:
         '201':
           description: Transaction created
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
           content:
             application/json:
               schema:
@@ -224,6 +270,8 @@ paths:
               examples:
                 invalid_or_expired_token:
                   value: { error: invalid_or_expired_token }
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
 
 components:
   securitySchemes:
@@ -231,6 +279,53 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum requests allowed in the current window
+      schema:
+        type: integer
+        example: 10
+    X-RateLimit-Remaining:
+      description: Requests remaining in the current window
+      schema:
+        type: integer
+        example: 7
+    X-RateLimit-Reset:
+      description: Unix epoch seconds when the current window resets
+      schema:
+        type: integer
+        format: int64
+        example: 1753574460
+    Retry-After:
+      description: Seconds to wait before the next request will be accepted
+      schema:
+        type: integer
+        format: int64
+        example: 42
+
+  responses:
+    RateLimitExceeded:
+      description: Rate limit exceeded — too many requests in the current window
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/X-RateLimit-Remaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+        Retry-After:
+          $ref: '#/components/headers/Retry-After'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rate_limit_exceeded:
+              value:
+                error: rate_limit_exceeded
+                retryAfterSeconds: 42
+
   schemas:
     RegisterRequest:
       type: object
@@ -402,3 +497,11 @@ components:
         error:
           type: string
           example: invalid_credentials
+        retryAfterSeconds:
+          type: integer
+          format: int64
+          nullable: true
+          description: >
+            Seconds until the rate limit window resets.
+            Present only on 429 responses; omitted from all other error responses.
+          example: 42

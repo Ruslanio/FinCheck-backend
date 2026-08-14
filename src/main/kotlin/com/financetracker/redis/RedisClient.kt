@@ -7,16 +7,33 @@ import redis.clients.jedis.JedisPool
 
 private val logger = LoggerFactory.getLogger("RedisClient")
 
-class RedisClient(private val pool: JedisPool?) {
+interface RedisClient {
+    fun <T> execute(block: (Jedis) -> T): T?
 
-    fun <T> execute(block: (Jedis) -> T): T? =
+    fun setSession(
+        token: String,
+        data: SessionData,
+    )
+
+    fun getSession(token: String): SessionData?
+
+    fun deleteSession(token: String)
+
+    fun incrementRateLimit(
+        key: String,
+        ttlSeconds: Long,
+    ): Long?
+}
+
+class RedisClientImpl(private val pool: JedisPool?) : RedisClient {
+    override fun <T> execute(block: (Jedis) -> T): T? =
         runCatching {
             pool?.resource?.use { block(it) }
         }.onFailure { e ->
             logger.warn("Redis operation failed: ${e.message}")
         }.getOrNull()
 
-    fun setSession(
+    override fun setSession(
         token: String,
         data: SessionData,
     ) {
@@ -34,7 +51,7 @@ class RedisClient(private val pool: JedisPool?) {
         }
     }
 
-    fun getSession(token: String): SessionData? =
+    override fun getSession(token: String): SessionData? =
         execute { jedis ->
             val key = sessionKey(token)
             val fields = jedis.hgetAll(key)
@@ -47,9 +64,19 @@ class RedisClient(private val pool: JedisPool?) {
             )
         }
 
-    fun deleteSession(token: String) {
+    override fun deleteSession(token: String) {
         execute { jedis -> jedis.del(sessionKey(token)) }
     }
+
+    override fun incrementRateLimit(
+        key: String,
+        ttlSeconds: Long,
+    ): Long? =
+        execute { jedis ->
+            val count = jedis.incr(key)
+            if (count == 1L) jedis.expire(key, ttlSeconds)
+            count
+        }
 
     private fun sessionKey(token: String) = "session:$token"
 }

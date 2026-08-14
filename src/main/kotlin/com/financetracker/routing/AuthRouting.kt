@@ -8,6 +8,8 @@ import com.financetracker.model.LogoutRequest
 import com.financetracker.model.RefreshRequest
 import com.financetracker.model.RegisterRequest
 import com.financetracker.model.RegisterResult
+import com.financetracker.plugins.checkRateLimit
+import com.financetracker.ratelimit.RateLimits
 import com.financetracker.service.AuthService
 import com.financetracker.service.LogoutResult
 import com.financetracker.service.RefreshResult
@@ -26,6 +28,9 @@ fun Application.configureAuthRouting(authService: AuthService) {
     routing {
         route("/auth") {
             post("/register") {
+                val ip = call.request.local.remoteHost
+                if (!call.checkRateLimit(ip, RateLimits.AUTH_REGISTER)) return@post
+
                 val req =
                     runCatching { call.receive<RegisterRequest>() }.getOrElse {
                         call.respond(HttpStatusCode.BadRequest, ErrorResponse("invalid_request"))
@@ -49,6 +54,9 @@ fun Application.configureAuthRouting(authService: AuthService) {
             }
 
             post("/login") {
+                val ip = call.request.local.remoteHost
+                if (!call.checkRateLimit(ip, RateLimits.AUTH_LOGIN)) return@post
+
                 val req =
                     runCatching { call.receive<LoginRequest>() }.getOrElse {
                         call.respond(HttpStatusCode.BadRequest, ErrorResponse("invalid_request"))

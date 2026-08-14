@@ -1,5 +1,7 @@
 package com.financetracker.model
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -34,8 +36,13 @@ data class SessionData(
     val createdAt: String,
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class ErrorResponse(val error: String)
+data class ErrorResponse(
+    val error: String,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val retryAfterSeconds: Long? = null,
+)
 
 sealed interface RegisterResult {
     data class Success(val response: RegisterResponse) : RegisterResult
