@@ -3,6 +3,8 @@ package com.financetracker.routing
 import com.financetracker.model.CreateTransactionRequest
 import com.financetracker.model.ErrorResponse
 import com.financetracker.model.toResponse
+import com.financetracker.plugins.checkRateLimit
+import com.financetracker.ratelimit.RateLimits
 import com.financetracker.service.CreateTransactionResult
 import com.financetracker.service.TransactionService
 import io.ktor.http.HttpStatusCode
@@ -28,6 +30,8 @@ fun Application.configureTransactionRouting(transactionService: TransactionServi
                 get {
                     val userId =
                         UUID.fromString(call.principal<JWTPrincipal>()!!.payload.subject)
+                    if (!call.checkRateLimit(userId.toString(), RateLimits.TRANSACTIONS)) return@get
+
                     val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 0
                     val size = call.request.queryParameters["size"]?.toIntOrNull() ?: 20
                     val category = call.request.queryParameters["category"]
@@ -46,6 +50,8 @@ fun Application.configureTransactionRouting(transactionService: TransactionServi
                 post {
                     val userId =
                         UUID.fromString(call.principal<JWTPrincipal>()!!.payload.subject)
+                    if (!call.checkRateLimit(userId.toString(), RateLimits.TRANSACTIONS)) return@post
+
                     val req =
                         runCatching { call.receive<CreateTransactionRequest>() }.getOrElse {
                             call.respond(HttpStatusCode.BadRequest, ErrorResponse("invalid_request"))

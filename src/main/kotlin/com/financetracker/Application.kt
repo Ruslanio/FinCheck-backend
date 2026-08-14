@@ -2,10 +2,12 @@ package com.financetracker
 
 import com.financetracker.plugins.configureAuth
 import com.financetracker.plugins.configureDatabase
+import com.financetracker.plugins.configureRateLimit
 import com.financetracker.plugins.configureRouting
 import com.financetracker.plugins.configureSerialization
 import com.financetracker.plugins.createRedisPool
 import com.financetracker.redis.RedisClient
+import com.financetracker.redis.RedisClientImpl
 import com.financetracker.repository.RefreshTokenRepository
 import com.financetracker.repository.RefreshTokenRepositoryImpl
 import com.financetracker.repository.TransactionRepository
@@ -35,7 +37,7 @@ fun Application.module() {
                 single<UserRepository> { UserRepositoryImpl() }
                 single<RefreshTokenRepository> { RefreshTokenRepositoryImpl() }
                 single<TransactionRepository> { TransactionRepositoryImpl() }
-                single { RedisClient(jedisPool) }
+                single<RedisClient> { RedisClientImpl(jedisPool) }
                 single<AuthService> { AuthServiceImpl(get(), get(), get()) }
                 single<TransactionService> { TransactionServiceImpl(get()) }
             },
@@ -43,7 +45,7 @@ fun Application.module() {
     }
 
     configureSerialization()
-    // configureRateLimit() — Task 14
+    configureRateLimit()
     configureAuth()
     configureAuthRouting(get<AuthService>())
     configureTransactionRouting(get<TransactionService>())

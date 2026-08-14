@@ -23,7 +23,7 @@ class SessionCacheTest {
     fun setUp() {
         clearAllMocks()
         every { mockPool.resource } returns mockJedis
-        redisClient = RedisClient(mockPool)
+        redisClient = RedisClientImpl(mockPool)
     }
 
     @Test
@@ -94,7 +94,7 @@ class SessionCacheTest {
 
     @Test
     fun `execute returns null when pool is not initialized`() {
-        val client = RedisClient(null)
+        val client = RedisClientImpl(null)
         val result = client.execute { "value" }
         assertNull(result)
     }
