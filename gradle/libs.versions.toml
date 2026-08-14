@@ -10,6 +10,7 @@ kotlinx-serialization = "1.7.3"
 logback = "1.5.34"
 logstash-logback = "7.4"
 ktlint = "12.1.1"
+koin   = "4.0.0"
 bcrypt = "0.10.2"
 jjwt = "0.12.6"
 mockk = "1.13.12"
@@ -46,6 +47,8 @@ jjwt-api                   = { module = "io.jsonwebtoken:jjwt-api",             
 jjwt-impl                  = { module = "io.jsonwebtoken:jjwt-impl",                   version.ref = "jjwt" }
 jjwt-jackson               = { module = "io.jsonwebtoken:jjwt-jackson",                version.ref = "jjwt" }
 mockk                      = { module = "io.mockk:mockk",                              version.ref = "mockk" }
+koin-ktor                  = { module = "io.insert-koin:koin-ktor",                     version.ref = "koin" }
+koin-logger-slf4j          = { module = "io.insert-koin:koin-logger-slf4j",             version.ref = "koin" }
 
 [plugins]
 kotlin-jvm           = { id = "org.jetbrains.kotlin.jvm",                  version.ref = "kotlin" }

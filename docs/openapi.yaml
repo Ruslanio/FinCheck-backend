@@ -132,7 +132,105 @@ paths:
                 token_revoked:
                   value: { error: token_revoked }
 
+  /transactions:
+    get:
+      summary: List transactions for the authenticated user
+      operationId: listTransactions
+      tags: [transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Zero-based page index
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of records per page
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive category filter
+      responses:
+        '200':
+          description: Paginated list of transactions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedTransactionsResponse'
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_or_expired_token:
+                  value: { error: invalid_or_expired_token }
+
+    post:
+      summary: Create a transaction
+      operationId: createTransaction
+      tags: [transactions]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '200':
+          description: >
+            Duplicate idempotency key — returns the original transaction without creating a new one.
+            The response body is identical to the 201 response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '400':
+          description: Missing or invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_required_fields:
+                  value: { error: missing_required_fields }
+                invalid_request:
+                  value: { error: invalid_request }
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_or_expired_token:
+                  value: { error: invalid_or_expired_token }
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     RegisterRequest:
       type: object
@@ -211,6 +309,91 @@ components:
           type: string
           description: Access token to revoke from the session cache
           example: eyJhbGciOiJIUzI1NiJ9...
+
+    CreateTransactionRequest:
+      type: object
+      required: [amount, category]
+      properties:
+        amount:
+          type: number
+          format: double
+          description: Non-zero transaction amount; negative for expenses, positive for income
+          example: -42.50
+        category:
+          type: string
+          description: Non-blank category label
+          example: food
+        description:
+          type: string
+          nullable: true
+          example: Lunch at the office
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: >
+            Client-generated key. If a transaction with this key already exists for the user,
+            the server returns 200 with the original transaction instead of creating a new one.
+          example: order-abc-001
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO-8601 timestamp; defaults to server time if omitted
+          example: '2026-08-12T10:30:00Z'
+
+    TransactionResponse:
+      type: object
+      required: [id, userId, amount, category, description, idempotencyKey, occurredAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3f5a9b2c-1234-5678-abcd-ef0123456789
+        userId:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        amount:
+          type: number
+          format: double
+          example: -42.50
+        category:
+          type: string
+          example: food
+        description:
+          type: string
+          nullable: true
+          example: Lunch at the office
+        idempotencyKey:
+          type: string
+          nullable: true
+          example: order-abc-001
+        occurredAt:
+          type: string
+          format: date-time
+          example: '2026-08-12T10:30:00Z'
+
+    PagedTransactionsResponse:
+      type: object
+      required: [data, page, size, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
+        page:
+          type: integer
+          description: Zero-based page index returned
+          example: 0
+        size:
+          type: integer
+          description: Page size used for this response
+          example: 20
+        total:
+          type: integer
+          format: int64
+          description: Total number of matching transactions across all pages
+          example: 57
 
     ErrorResponse:
       type: object

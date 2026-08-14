@@ -5,7 +5,6 @@ import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import redis.clients.jedis.Jedis
@@ -18,23 +17,19 @@ class SessionCacheTest {
 
     private val mockPool = mockk<JedisPool>()
     private val mockJedis = mockk<Jedis>(relaxed = true)
+    private lateinit var redisClient: RedisClient
 
     @BeforeEach
     fun setUp() {
         clearAllMocks()
-        RedisClient.pool = mockPool
         every { mockPool.resource } returns mockJedis
-    }
-
-    @AfterEach
-    fun tearDown() {
-        RedisClient.pool = null
+        redisClient = RedisClient(mockPool)
     }
 
     @Test
     fun `setSession stores correct fields in Redis`() {
         val data = SessionData("user-1", "user@example.com", "2026-01-01T00:00:00Z")
-        RedisClient.setSession("mytoken", data)
+        redisClient.setSession("mytoken", data)
         verify {
             mockJedis.hset(
                 "session:mytoken",
@@ -50,7 +45,7 @@ class SessionCacheTest {
     @Test
     fun `setSession sets TTL to 900`() {
         val data = SessionData("user-1", "user@example.com", "2026-01-01T00:00:00Z")
-        RedisClient.setSession("mytoken", data)
+        redisClient.setSession("mytoken", data)
         verify { mockJedis.expire("session:mytoken", 900L) }
     }
 
@@ -63,7 +58,7 @@ class SessionCacheTest {
                 "createdAt" to "2026-01-01T00:00:00Z",
             )
 
-        val result = RedisClient.getSession("mytoken")
+        val result = redisClient.getSession("mytoken")
 
         assertEquals(SessionData("user-1", "user@example.com", "2026-01-01T00:00:00Z"), result)
     }
@@ -77,7 +72,7 @@ class SessionCacheTest {
                 "createdAt" to "2026-01-01T00:00:00Z",
             )
 
-        RedisClient.getSession("mytoken")
+        redisClient.getSession("mytoken")
 
         verify { mockJedis.expire("session:mytoken", 900L) }
     }
@@ -86,28 +81,28 @@ class SessionCacheTest {
     fun `getSession returns null when key does not exist`() {
         every { mockJedis.hgetAll("session:mytoken") } returns emptyMap()
 
-        val result = RedisClient.getSession("mytoken")
+        val result = redisClient.getSession("mytoken")
 
         assertNull(result)
     }
 
     @Test
     fun `deleteSession removes the key`() {
-        RedisClient.deleteSession("mytoken")
+        redisClient.deleteSession("mytoken")
         verify { mockJedis.del("session:mytoken") }
     }
 
     @Test
     fun `execute returns null when pool is not initialized`() {
-        RedisClient.pool = null
-        val result = RedisClient.execute { "value" }
+        val client = RedisClient(null)
+        val result = client.execute { "value" }
         assertNull(result)
     }
 
     @Test
     fun `execute returns null when Jedis throws JedisException`() {
         every { mockPool.resource } throws JedisException("connection refused")
-        val result = RedisClient.execute { "value" }
+        val result = redisClient.execute { "value" }
         assertNull(result)
     }
 }

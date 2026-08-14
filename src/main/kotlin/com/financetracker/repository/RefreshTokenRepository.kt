@@ -28,8 +28,29 @@ data class RefreshTokenRow(
     val revokedAt: Instant? = null,
 )
 
-object RefreshTokenRepository {
+interface RefreshTokenRepository {
     fun insert(
+        userId: UUID,
+        tokenHash: String,
+        expiresAt: Instant,
+    )
+
+    fun findActiveByTokenHash(tokenHash: String): RefreshTokenRow?
+
+    fun findAnyByTokenHash(tokenHash: String): RefreshTokenRow?
+
+    fun revokeAndInsert(
+        oldTokenHash: String,
+        userId: UUID,
+        newTokenHash: String,
+        newExpiresAt: Instant,
+    ): Boolean
+
+    fun revoke(tokenHash: String)
+}
+
+class RefreshTokenRepositoryImpl : RefreshTokenRepository {
+    override fun insert(
         userId: UUID,
         tokenHash: String,
         expiresAt: Instant,
@@ -41,7 +62,7 @@ object RefreshTokenRepository {
         }
     }
 
-    fun findActiveByTokenHash(tokenHash: String): RefreshTokenRow? {
+    override fun findActiveByTokenHash(tokenHash: String): RefreshTokenRow? {
         val now = Clock.System.now()
         return RefreshTokens.selectAll()
             .where {
@@ -60,7 +81,7 @@ object RefreshTokenRepository {
             }
     }
 
-    fun findAnyByTokenHash(tokenHash: String): RefreshTokenRow? =
+    override fun findAnyByTokenHash(tokenHash: String): RefreshTokenRow? =
         RefreshTokens.selectAll()
             .where { RefreshTokens.tokenHash eq tokenHash }
             .singleOrNull()
@@ -74,7 +95,7 @@ object RefreshTokenRepository {
                 )
             }
 
-    fun revokeAndInsert(
+    override fun revokeAndInsert(
         oldTokenHash: String,
         userId: UUID,
         newTokenHash: String,
@@ -98,7 +119,7 @@ object RefreshTokenRepository {
             true
         }
 
-    fun revoke(tokenHash: String) {
+    override fun revoke(tokenHash: String) {
         RefreshTokens.update({ RefreshTokens.tokenHash eq tokenHash }) {
             it[revokedAt] = Clock.System.now()
         }

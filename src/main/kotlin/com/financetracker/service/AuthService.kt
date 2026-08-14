@@ -38,11 +38,31 @@ sealed interface LogoutResult {
     data object Invalid : LogoutResult
 }
 
-open class AuthService(
-    private val userRepository: UserRepository = UserRepository,
-    private val refreshTokenRepository: RefreshTokenRepository = RefreshTokenRepository,
-) {
-    open suspend fun register(
+interface AuthService {
+    suspend fun register(
+        email: String,
+        password: String,
+    ): RegisterResult
+
+    suspend fun login(
+        email: String,
+        password: String,
+    ): LoginResult
+
+    suspend fun refresh(rawToken: String): RefreshResult
+
+    suspend fun logout(
+        refreshToken: String,
+        accessToken: String,
+    ): LogoutResult
+}
+
+class AuthServiceImpl(
+    private val userRepository: UserRepository,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val redisClient: RedisClient,
+) : AuthService {
+    override suspend fun register(
         email: String,
         password: String,
     ): RegisterResult {
@@ -65,7 +85,7 @@ open class AuthService(
         }
     }
 
-    open suspend fun login(
+    override suspend fun login(
         email: String,
         password: String,
     ): LoginResult {
@@ -98,7 +118,7 @@ open class AuthService(
                     email = user.email,
                     createdAt = Clock.System.now().toString(),
                 )
-            RedisClient.setSession(token = accessToken, data = sessionData)
+            redisClient.setSession(token = accessToken, data = sessionData)
         }
 
         return LoginResult.Success(
@@ -110,7 +130,7 @@ open class AuthService(
         )
     }
 
-    open suspend fun refresh(rawToken: String): RefreshResult {
+    override suspend fun refresh(rawToken: String): RefreshResult {
         val hash = sha256(rawToken)
         val tokenRow =
             withContext(Dispatchers.IO) {
@@ -138,7 +158,7 @@ open class AuthService(
         }
     }
 
-    open suspend fun logout(
+    override suspend fun logout(
         refreshToken: String,
         accessToken: String,
     ): LogoutResult {
@@ -160,7 +180,7 @@ open class AuthService(
             transaction { refreshTokenRepository.revoke(hash) }
         }
         withContext(Dispatchers.IO) {
-            RedisClient.deleteSession(accessToken)
+            redisClient.deleteSession(accessToken)
         }
         return LogoutResult.Success
     }
