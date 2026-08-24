@@ -4,6 +4,7 @@ import com.financetracker.model.SessionData
 import org.slf4j.LoggerFactory
 import redis.clients.jedis.Jedis
 import redis.clients.jedis.JedisPool
+import redis.clients.jedis.params.SetParams
 
 private val logger = LoggerFactory.getLogger("RedisClient")
 
@@ -23,6 +24,16 @@ interface RedisClient {
         key: String,
         ttlSeconds: Long,
     ): Long?
+
+    fun acquireIdempotencyLock(
+        key: String,
+        userId: String,
+    ): Boolean
+
+    fun releaseIdempotencyLock(
+        key: String,
+        userId: String,
+    )
 }
 
 class RedisClientImpl(private val pool: JedisPool?) : RedisClient {
@@ -77,6 +88,24 @@ class RedisClientImpl(private val pool: JedisPool?) : RedisClient {
             if (count == 1L) jedis.expire(key, ttlSeconds)
             count
         }
+
+    override fun acquireIdempotencyLock(
+        key: String,
+        userId: String,
+    ): Boolean {
+        val redisKey = "idem:$key:$userId"
+        return execute { jedis ->
+            val result = jedis.set(redisKey, "1", SetParams().nx().ex(86400L))
+            result != null
+        } ?: true
+    }
+
+    override fun releaseIdempotencyLock(
+        key: String,
+        userId: String,
+    ) {
+        execute { jedis -> jedis.del("idem:$key:$userId") }
+    }
 
     private fun sessionKey(token: String) = "session:$token"
 }

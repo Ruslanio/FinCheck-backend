@@ -64,6 +64,8 @@ fun Application.configureTransactionRouting(transactionService: TransactionServi
                                 call.respond(HttpStatusCode.Created, result.transaction.toResponse())
                             is CreateTransactionResult.Duplicate ->
                                 call.respond(HttpStatusCode.OK, result.transaction.toResponse())
+                            is CreateTransactionResult.InFlight ->
+                                call.respond(HttpStatusCode.Conflict, ErrorResponse("request_in_flight"))
                             is CreateTransactionResult.ValidationError ->
                                 call.respond(HttpStatusCode.BadRequest, ErrorResponse(result.message))
                         }
