@@ -1,6 +1,7 @@
 package com.financetracker.service
 
 import com.financetracker.model.CreateTransactionRequest
+import com.financetracker.redis.RedisClient
 import com.financetracker.repository.TransactionRepository
 import com.financetracker.repository.TransactionRow
 import io.mockk.every
@@ -18,7 +19,8 @@ import kotlin.test.assertIs
 class TransactionServiceTest {
 
     private val repository = mockk<TransactionRepository>()
-    private val service: TransactionService = TransactionServiceImpl(repository)
+    private val redisClient = mockk<RedisClient>()
+    private val service: TransactionService = TransactionServiceImpl(repository, redisClient)
     private val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
 
     private fun makeRow(idempotencyKey: String? = null) =
@@ -76,6 +78,7 @@ class TransactionServiceTest {
     fun `createTransaction returns Duplicate when idempotency key exists`() =
         runBlocking {
             val existingRow = makeRow(idempotencyKey = "key-1")
+            every { redisClient.acquireIdempotencyLock("key-1", userId.toString()) } returns false
             every { repository.findByIdempotencyKey("key-1", userId) } returns existingRow
 
             val req = CreateTransactionRequest(amount = 10.0, category = "food", idempotencyKey = "key-1")
@@ -89,6 +92,7 @@ class TransactionServiceTest {
     fun `createTransaction returns Created for new idempotency key`() =
         runBlocking {
             val newRow = makeRow(idempotencyKey = "key-2")
+            every { redisClient.acquireIdempotencyLock("key-2", userId.toString()) } returns true
             every { repository.findByIdempotencyKey("key-2", userId) } returns null
             every { repository.insert(userId, any(), "food", null, "key-2", any()) } returns newRow
 

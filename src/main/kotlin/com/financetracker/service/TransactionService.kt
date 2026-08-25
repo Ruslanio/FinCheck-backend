@@ -3,6 +3,7 @@ package com.financetracker.service
 import com.financetracker.model.CreateTransactionRequest
 import com.financetracker.model.PagedTransactionsResponse
 import com.financetracker.model.toResponse
+import com.financetracker.redis.RedisClient
 import com.financetracker.repository.TransactionRepository
 import com.financetracker.repository.TransactionRow
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,8 @@ sealed interface CreateTransactionResult {
     data class Created(val transaction: TransactionRow) : CreateTransactionResult
 
     data class Duplicate(val transaction: TransactionRow) : CreateTransactionResult
+
+    data object InFlight : CreateTransactionResult
 
     data class ValidationError(val message: String) : CreateTransactionResult
 }
@@ -34,6 +37,7 @@ interface TransactionService {
 
 class TransactionServiceImpl(
     private val repository: TransactionRepository,
+    private val redisClient: RedisClient,
 ) : TransactionService {
     override suspend fun getTransactions(
         userId: UUID,
@@ -64,26 +68,50 @@ class TransactionServiceImpl(
         if (request.amount == 0.0) return CreateTransactionResult.ValidationError("missing_required_fields")
         if (request.category.isBlank()) return CreateTransactionResult.ValidationError("missing_required_fields")
 
-        if (request.idempotencyKey != null) {
+        val key = request.idempotencyKey
+
+        if (key != null) {
+            val lockAcquired = redisClient.acquireIdempotencyLock(key, userId.toString())
+
+            if (!lockAcquired) {
+                val existing =
+                    withContext(Dispatchers.IO) {
+                        repository.findByIdempotencyKey(key, userId)
+                    }
+                return if (existing != null) {
+                    CreateTransactionResult.Duplicate(existing)
+                } else {
+                    CreateTransactionResult.InFlight
+                }
+            }
+
             val existing =
                 withContext(Dispatchers.IO) {
-                    repository.findByIdempotencyKey(request.idempotencyKey, userId)
+                    repository.findByIdempotencyKey(key, userId)
                 }
-            if (existing != null) return CreateTransactionResult.Duplicate(existing)
+            if (existing != null) {
+                redisClient.releaseIdempotencyLock(key, userId.toString())
+                return CreateTransactionResult.Duplicate(existing)
+            }
         }
 
         val occurredAt = request.occurredAt ?: Clock.System.now()
 
         val row =
-            withContext(Dispatchers.IO) {
-                repository.insert(
-                    userId = userId,
-                    amount = request.amount.toBigDecimal(),
-                    category = request.category,
-                    description = request.description,
-                    idempotencyKey = request.idempotencyKey,
-                    occurredAt = occurredAt,
-                )
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.insert(
+                        userId = userId,
+                        amount = request.amount.toBigDecimal(),
+                        category = request.category,
+                        description = request.description,
+                        idempotencyKey = key,
+                        occurredAt = occurredAt,
+                    )
+                }
+            } catch (e: Exception) {
+                if (key != null) redisClient.releaseIdempotencyLock(key, userId.toString())
+                throw e
             }
 
         return CreateTransactionResult.Created(row)

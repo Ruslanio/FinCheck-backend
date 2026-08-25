@@ -261,6 +261,17 @@ paths:
                   value: { error: missing_required_fields }
                 invalid_request:
                   value: { error: invalid_request }
+        '409':
+          description: >
+            Idempotency key is in-flight — another request with this key is currently being
+            processed. The client should retry after a short delay; do NOT change the key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                request_in_flight:
+                  value: { error: request_in_flight }
         '401':
           description: Missing or invalid JWT
           content:
@@ -426,8 +437,10 @@ components:
           type: string
           nullable: true
           description: >
-            Client-generated key. If a transaction with this key already exists for the user,
-            the server returns 200 with the original transaction instead of creating a new one.
+            Client-generated key scoped per user. If a completed transaction with this key
+            already exists, the server returns 200 with the original transaction. If the key is
+            currently in-flight (another request holds the Redis lock), returns 409 with
+            {"error":"request_in_flight"} — retry with the same key after a short delay.
           example: order-abc-001
         occurredAt:
           type: string

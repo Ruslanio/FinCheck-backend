@@ -39,7 +39,7 @@ fun Application.module() {
                 single<TransactionRepository> { TransactionRepositoryImpl() }
                 single<RedisClient> { RedisClientImpl(jedisPool) }
                 single<AuthService> { AuthServiceImpl(get(), get(), get()) }
-                single<TransactionService> { TransactionServiceImpl(get()) }
+                single<TransactionService> { TransactionServiceImpl(get(), get()) }
             },
         )
     }
