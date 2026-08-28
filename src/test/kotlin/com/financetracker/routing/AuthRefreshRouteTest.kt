@@ -12,6 +12,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
@@ -36,7 +37,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.refresh("valid-refresh-token") } returns
                 RefreshResult.Success("new-access-token", "new-refresh-uuid")
@@ -59,7 +60,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.refresh("revoked-token") } returns RefreshResult.Revoked
 
@@ -79,7 +80,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.refresh("expired-token") } returns RefreshResult.Expired
 
@@ -99,7 +100,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.refresh("unknown-token") } returns RefreshResult.Invalid
 
@@ -119,7 +120,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.refresh("reused-token") } returnsMany
                 listOf(
@@ -149,7 +150,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.logout("active-token", any()) } returns LogoutResult.Success
 
@@ -168,7 +169,7 @@ class AuthRefreshRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.logout("revoked-token", any()) } returns LogoutResult.AlreadyRevoked
 

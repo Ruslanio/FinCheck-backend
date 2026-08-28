@@ -34,6 +34,14 @@ docker-down:
 docker-reset:
 	docker compose down -v
 
+# Drop and re-apply the full DB schema without touching the Docker volume.
+# Use after editing V1__init.sql: wipes all tables, restarts backend so Flyway
+# re-runs V1 from scratch and recreates everything clean.
+db-schema:
+	docker compose exec -T postgres psql -U financetracker -d financetracker \
+		-c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO financetracker;"
+	docker compose restart backend
+
 # ── Verify the running Docker stack ───────────────────────────────────────────
 # All three targets exec into running Docker containers — requires docker-up first
 
@@ -55,4 +63,4 @@ stop:
 	-brew services stop postgresql@16
 	-docker compose down 2>/dev/null
 
-.PHONY: dev db stop-dev docker-up docker-up-detached docker-down docker-reset health tables redis-check stop
+.PHONY: dev db stop-dev docker-up docker-up-detached docker-down docker-reset db-schema health tables redis-check stop

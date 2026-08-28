@@ -10,4 +10,5 @@ object RateLimits {
     val AUTH_LOGIN = RateLimitConfig(limit = 10, keyPrefix = "rate:ip")
     val AUTH_REGISTER = RateLimitConfig(limit = 5, keyPrefix = "rate:ip")
     val TRANSACTIONS = RateLimitConfig(limit = 100, keyPrefix = "rate")
+    val CATEGORIES = RateLimitConfig(limit = 100, keyPrefix = "rate")
 }
