@@ -12,18 +12,21 @@ Database.kt           — HikariCP pool + Flyway migration + Exposed connect
 Auth.kt               — JWT verification middleware
 Serialization.kt      — kotlinx.serialization JSON config
 RateLimit.kt          — Redis sliding window middleware
+Routing.kt            — ALL route registrations go here (single source of truth)
 routing/
 AuthRouting.kt        — POST /auth/register, POST /auth/login, POST /auth/refresh
 TransactionRouting.kt — GET/POST /transactions
-InsightsRouting.kt    — POST /insights (SSE)
+CategoryRouting.kt    — GET/POST/PUT/DELETE /categories
 HealthRouting.kt      — GET /health
 service/
 AuthService.kt        — BCrypt, JWT issue/refresh logic
 TransactionService.kt — business logic, idempotency enforcement
+CategoryService.kt    — category CRUD, fallback reassignment on delete
 InsightsService.kt    — LLM call + SSE stream
 repository/
 UserRepository.kt
 TransactionRepository.kt
+CategoryRepository.kt — CategoryType enum, seeding defaults
 redis/
 RedisClient.kt        — Jedis pool wrapper
 
@@ -32,12 +35,31 @@ configureDatabase() → configureSerialization() → configureRateLimit()
 → configureAuth() → configureRouting()
 Order matters: auth middleware must load after serialization.
 
+## Routing convention
+- plugins/Routing.kt is the single place where all routes are wired.
+- configureRouting() receives service instances as parameters (injected from Koin in Application.kt).
+- Every new routing file (e.g. FooRouting.kt) must be added to configureRouting() — never call
+  configure*Routing() directly from Application.kt.
+- Health route is always registered; service routes are only registered when their service is provided
+  (allows health-only test setups without Koin).
+
 ## Database
-- Migrations: Flyway. Files in src/main/resources/db/migration/.
-- Naming: V1__init.sql, V2__add_index.sql etc.
-- Never edit an existing migration — always add a new Vn__ file.
-- Transactions table is RANGE-partitioned by occurred_at. Add new partitions in migrations.
+- The app is NOT yet published. Schema lives in V1__init.sql as a single source of truth.
+- To change schema: update V1__init.sql, then apply the same SQL directly to the running DB,
+  and restart the app (docker compose restart backend). Do NOT create new Vn__ migration files.
+- When the DB volume is wiped, docker compose up recreates the full schema from V1.
 - ORM: Jetbrains Exposed (DSL style, not DAO). No raw JDBC.
+- Transactions table is RANGE-partitioned by occurred_at.
+
+## Categories
+- Seeded on user registration: Food, Transport, Shopping, Health, Entertainment, Housing,
+  Other (expense fallback), Income, Income-Other (income fallback) — 9 total, inside the
+  same DB transaction as user creation.
+- Categories have a type (expense|income) and an is_fallback flag.
+- Deleting a non-fallback category atomically reassigns its transactions to the same-type
+  "Other" fallback before deleting.
+- Fallback categories cannot be deleted.
+- Transactions reference category_id (FK); type is derived from the category.
 
 ## Redis key schema
 rate:{userId}:{minuteBucket}    INCR+EXPIRE   sliding window rate limiter, TTL 65s
@@ -58,14 +80,16 @@ LLM_API_KEY                    — AI insights service key
 APP_VERSION                    — injected by CI, shown in /health response
 
 ## Running locally
-docker-compose up   — starts postgres + redis + backend
+docker compose up   — starts postgres + redis + backend
 Health check:       curl http://localhost:8080/health
 
 ## Testing
 - Framework: JUnit5 + MockK.
-- Integration tests: Testcontainers (postgres + redis spun up per test class).
 - Every new route must have at minimum: happy path + auth-missing 401 test.
 - Run: ./gradlew test
+- Note: kotlin.test.assertIs<T>() returns T not Unit — if it is the final expression in a
+  runBlocking test, JUnit 5 silently skips the test. End test blocks with assertTrue or
+  a void-returning call (assertEquals, verify, etc.) instead.
 
 ## Android client
 - Client repo: ../FinanceTracker-Android (separate project, separate Git repo).
@@ -74,7 +98,8 @@ Health check:       curl http://localhost:8080/health
 
 ## Do not
 - Commit .env or any file with real credentials.
-- Edit existing Flyway migrations.
+- Create new Flyway migration files (app not yet published — edit V1__init.sql directly).
 - Return stack traces in HTTP responses — log them server-side, return a generic error body.
 - Use blocking IO on Ktor's coroutine dispatcher — use Dispatchers.IO for DB calls.
 - Add endpoints without updating docs/openapi.yaml.
+- Call configure*Routing() from Application.kt — use Routing.kt for all route wiring.

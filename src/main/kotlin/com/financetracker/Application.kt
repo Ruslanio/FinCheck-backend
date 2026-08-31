@@ -8,16 +8,18 @@ import com.financetracker.plugins.configureSerialization
 import com.financetracker.plugins.createRedisPool
 import com.financetracker.redis.RedisClient
 import com.financetracker.redis.RedisClientImpl
+import com.financetracker.repository.CategoryRepository
+import com.financetracker.repository.CategoryRepositoryImpl
 import com.financetracker.repository.RefreshTokenRepository
 import com.financetracker.repository.RefreshTokenRepositoryImpl
 import com.financetracker.repository.TransactionRepository
 import com.financetracker.repository.TransactionRepositoryImpl
 import com.financetracker.repository.UserRepository
 import com.financetracker.repository.UserRepositoryImpl
-import com.financetracker.routing.configureAuthRouting
-import com.financetracker.routing.configureTransactionRouting
 import com.financetracker.service.AuthService
 import com.financetracker.service.AuthServiceImpl
+import com.financetracker.service.CategoryService
+import com.financetracker.service.CategoryServiceImpl
 import com.financetracker.service.TransactionService
 import com.financetracker.service.TransactionServiceImpl
 import io.ktor.server.application.Application
@@ -37,9 +39,11 @@ fun Application.module() {
                 single<UserRepository> { UserRepositoryImpl() }
                 single<RefreshTokenRepository> { RefreshTokenRepositoryImpl() }
                 single<TransactionRepository> { TransactionRepositoryImpl() }
+                single<CategoryRepository> { CategoryRepositoryImpl() }
                 single<RedisClient> { RedisClientImpl(jedisPool) }
-                single<AuthService> { AuthServiceImpl(get(), get(), get()) }
-                single<TransactionService> { TransactionServiceImpl(get(), get()) }
+                single<AuthService> { AuthServiceImpl(get(), get(), get(), get()) }
+                single<TransactionService> { TransactionServiceImpl(get(), get(), get()) }
+                single<CategoryService> { CategoryServiceImpl(get(), get()) }
             },
         )
     }
@@ -47,7 +51,9 @@ fun Application.module() {
     configureSerialization()
     configureRateLimit()
     configureAuth()
-    configureAuthRouting(get<AuthService>())
-    configureTransactionRouting(get<TransactionService>())
-    configureRouting()
+    configureRouting(
+        authService = get(),
+        transactionService = get(),
+        categoryService = get(),
+    )
 }

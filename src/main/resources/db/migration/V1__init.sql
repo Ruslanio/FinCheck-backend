@@ -5,11 +5,24 @@ CREATE TABLE users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE categories (
+    id              UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name            TEXT        NOT NULL,
+    type            TEXT        NOT NULL CHECK (type IN ('expense', 'income')),
+    is_fallback     BOOLEAN     NOT NULL DEFAULT FALSE,
+    idempotency_key TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_categories_user_id ON categories (user_id);
+CREATE UNIQUE INDEX idx_categories_user_name_type ON categories (user_id, lower(name), type);
+
 CREATE TABLE transactions (
-    id              UUID NOT NULL DEFAULT gen_random_uuid(),
-    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id              UUID        NOT NULL DEFAULT gen_random_uuid(),
+    user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     amount          NUMERIC(12,2) NOT NULL,
-    category        TEXT NOT NULL,
+    category_id     UUID        NOT NULL REFERENCES categories(id),
     description     TEXT,
     idempotency_key TEXT,
     occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -24,5 +37,6 @@ CREATE TABLE transactions_y2026
     PARTITION OF transactions
     FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
 
-CREATE INDEX idx_transactions_user_id    ON transactions (user_id);
-CREATE INDEX idx_transactions_occurred_at ON transactions (occurred_at DESC);
+CREATE INDEX idx_transactions_user_id      ON transactions (user_id);
+CREATE INDEX idx_transactions_occurred_at  ON transactions (occurred_at DESC);
+CREATE INDEX idx_transactions_category_id  ON transactions (category_id);

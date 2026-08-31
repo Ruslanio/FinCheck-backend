@@ -6,6 +6,7 @@ import com.financetracker.model.RegisterResponse
 import com.financetracker.model.RegisterResult
 import com.financetracker.model.SessionData
 import com.financetracker.redis.RedisClient
+import com.financetracker.repository.CategoryRepository
 import com.financetracker.repository.RefreshTokenRepository
 import com.financetracker.repository.UserRepository
 import com.financetracker.util.JwtUtil
@@ -61,6 +62,7 @@ class AuthServiceImpl(
     private val userRepository: UserRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val redisClient: RedisClient,
+    private val categoryRepository: CategoryRepository,
 ) : AuthService {
     override suspend fun register(
         email: String,
@@ -80,6 +82,7 @@ class AuthServiceImpl(
                     return@transaction RegisterResult.EmailAlreadyRegistered
                 }
                 val userId = userRepository.insert(email, hash)
+                categoryRepository.seedDefaults(userId)
                 RegisterResult.Success(RegisterResponse(userId.toString(), email))
             }
         }

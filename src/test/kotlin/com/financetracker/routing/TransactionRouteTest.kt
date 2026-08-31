@@ -22,6 +22,7 @@ import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.response.respond
+import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
@@ -38,6 +39,7 @@ import kotlin.test.assertTrue
 
 private const val TEST_JWT_SECRET = "test-jwt-secret-for-transaction-route-tests-long-enough"
 private const val TEST_USER_ID = "11111111-1111-1111-1111-111111111111"
+private val TEST_CATEGORY_ID: UUID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
 private fun Application.installTestAuth() {
     install(Authentication) {
@@ -66,7 +68,7 @@ private fun makeTransactionRow(userId: UUID = UUID.fromString(TEST_USER_ID)) =
         id = UUID.randomUUID(),
         userId = userId,
         amount = BigDecimal("42.50"),
-        category = "food",
+        categoryId = TEST_CATEGORY_ID,
         description = "Lunch",
         idempotencyKey = "key-001",
         occurredAt = Clock.System.now(),
@@ -87,7 +89,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val response = client.get("/transactions")
             assertEquals(HttpStatusCode.Unauthorized, response.status)
@@ -99,7 +101,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             coEvery {
@@ -124,7 +126,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             coEvery {
@@ -147,7 +149,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             coEvery {
@@ -166,24 +168,40 @@ class TransactionRouteTest {
         }
 
     @Test
-    fun `GET transactions passes category filter to service`() =
+    fun `GET transactions passes categoryId filter to service`() =
         testApplication {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             coEvery {
-                transactionService.getTransactions(userId, 0, 20, "food")
+                transactionService.getTransactions(userId, 0, 20, TEST_CATEGORY_ID)
             } returns PagedTransactionsResponse(data = emptyList(), page = 0, size = 20, total = 0L)
 
             val response =
-                client.get("/transactions?category=food") {
+                client.get("/transactions?categoryId=$TEST_CATEGORY_ID") {
                     header(HttpHeaders.Authorization, "Bearer ${makeToken()}")
                 }
 
             assertEquals(HttpStatusCode.OK, response.status)
+        }
+
+    @Test
+    fun `GET transactions returns 400 for invalid categoryId format`() =
+        testApplication {
+            application {
+                installTestAuth()
+                configureSerialization()
+                routing { transactionRoutes(transactionService) }
+            }
+            val response =
+                client.get("/transactions?categoryId=not-a-uuid") {
+                    header(HttpHeaders.Authorization, "Bearer ${makeToken()}")
+                }
+
+            assertEquals(HttpStatusCode.BadRequest, response.status)
         }
 
     @Test
@@ -192,7 +210,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             val row = makeTransactionRow(userId)
@@ -204,12 +222,12 @@ class TransactionRouteTest {
                 client.post("/transactions") {
                     header(HttpHeaders.Authorization, "Bearer ${makeToken()}")
                     header(HttpHeaders.ContentType, "application/json")
-                    setBody("""{"amount":42.50,"category":"food","description":"Lunch","idempotencyKey":"key-001"}""")
+                    setBody("""{"amount":42.50,"categoryId":"$TEST_CATEGORY_ID","description":"Lunch","idempotencyKey":"key-001"}""")
                 }
 
             assertEquals(HttpStatusCode.Created, response.status)
             val body = Json.decodeFromString<TransactionResponse>(response.bodyAsText())
-            assertEquals("food", body.category)
+            assertEquals(TEST_CATEGORY_ID.toString(), body.categoryId)
         }
 
     @Test
@@ -218,7 +236,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val userId = UUID.fromString(TEST_USER_ID)
             val row = makeTransactionRow(userId)
@@ -230,12 +248,12 @@ class TransactionRouteTest {
                 client.post("/transactions") {
                     header(HttpHeaders.Authorization, "Bearer ${makeToken()}")
                     header(HttpHeaders.ContentType, "application/json")
-                    setBody("""{"amount":42.50,"category":"food","idempotencyKey":"key-001"}""")
+                    setBody("""{"amount":42.50,"categoryId":"$TEST_CATEGORY_ID","idempotencyKey":"key-001"}""")
                 }
 
             assertEquals(HttpStatusCode.OK, response.status)
             val body = Json.decodeFromString<TransactionResponse>(response.bodyAsText())
-            assertEquals("food", body.category)
+            assertEquals(TEST_CATEGORY_ID.toString(), body.categoryId)
         }
 
     @Test
@@ -244,7 +262,7 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val response =
                 client.post("/transactions") {
@@ -262,12 +280,12 @@ class TransactionRouteTest {
             application {
                 installTestAuth()
                 configureSerialization()
-                configureTransactionRouting(transactionService)
+                routing { transactionRoutes(transactionService) }
             }
             val response =
                 client.post("/transactions") {
                     header(HttpHeaders.ContentType, "application/json")
-                    setBody("""{"amount":42.50,"category":"food"}""")
+                    setBody("""{"amount":42.50,"categoryId":"$TEST_CATEGORY_ID"}""")
                 }
 
             assertEquals(HttpStatusCode.Unauthorized, response.status)

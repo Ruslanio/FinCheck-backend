@@ -4,6 +4,7 @@ import com.financetracker.model.CreateTransactionRequest
 import com.financetracker.model.PagedTransactionsResponse
 import com.financetracker.model.toResponse
 import com.financetracker.redis.RedisClient
+import com.financetracker.repository.CategoryRepository
 import com.financetracker.repository.TransactionRepository
 import com.financetracker.repository.TransactionRow
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,7 @@ interface TransactionService {
         userId: UUID,
         page: Int,
         size: Int,
-        category: String?,
+        categoryId: UUID?,
     ): PagedTransactionsResponse
 
     suspend fun createTransaction(
@@ -38,19 +39,20 @@ interface TransactionService {
 class TransactionServiceImpl(
     private val repository: TransactionRepository,
     private val redisClient: RedisClient,
+    private val categoryRepository: CategoryRepository,
 ) : TransactionService {
     override suspend fun getTransactions(
         userId: UUID,
         page: Int,
         size: Int,
-        category: String?,
+        categoryId: UUID?,
     ): PagedTransactionsResponse {
         require(page >= 0) { "page must be >= 0" }
         require(size in 1..100) { "size must be between 1 and 100" }
 
         val (rows, total) =
             withContext(Dispatchers.IO) {
-                repository.findByUserId(userId, page, size, category)
+                repository.findByUserId(userId, page, size, categoryId)
             }
 
         return PagedTransactionsResponse(
@@ -66,7 +68,14 @@ class TransactionServiceImpl(
         request: CreateTransactionRequest,
     ): CreateTransactionResult {
         if (request.amount == 0.0) return CreateTransactionResult.ValidationError("missing_required_fields")
-        if (request.category.isBlank()) return CreateTransactionResult.ValidationError("missing_required_fields")
+
+        val categoryId =
+            runCatching { UUID.fromString(request.categoryId) }.getOrNull()
+                ?: return CreateTransactionResult.ValidationError("invalid_category_id")
+
+        withContext(Dispatchers.IO) {
+            categoryRepository.findByIdAndUserId(categoryId, userId)
+        } ?: return CreateTransactionResult.ValidationError("category_not_found")
 
         val key = request.idempotencyKey
 
@@ -103,7 +112,7 @@ class TransactionServiceImpl(
                     repository.insert(
                         userId = userId,
                         amount = request.amount.toBigDecimal(),
-                        category = request.category,
+                        categoryId = categoryId,
                         description = request.description,
                         idempotencyKey = key,
                         occurredAt = occurredAt,

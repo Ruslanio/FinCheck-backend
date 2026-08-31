@@ -9,7 +9,6 @@ import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.andWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
-import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.math.BigDecimal
@@ -19,7 +18,7 @@ object Transactions : Table("transactions") {
     val id = uuid("id")
     val userId = uuid("user_id").references(Users.id, onDelete = ReferenceOption.CASCADE)
     val amount = decimal("amount", 12, 2)
-    val category = text("category")
+    val categoryId = uuid("category_id").references(Categories.id)
     val description = text("description").nullable()
     val idempotencyKey = text("idempotency_key").nullable()
     val occurredAt = timestamp("occurred_at")
@@ -31,7 +30,7 @@ data class TransactionRow(
     val id: UUID,
     val userId: UUID,
     val amount: BigDecimal,
-    val category: String,
+    val categoryId: UUID,
     val description: String?,
     val idempotencyKey: String?,
     val occurredAt: Instant,
@@ -42,7 +41,7 @@ interface TransactionRepository {
         userId: UUID,
         page: Int,
         size: Int,
-        category: String?,
+        categoryId: UUID?,
     ): Pair<List<TransactionRow>, Long>
 
     fun findByIdempotencyKey(
@@ -53,7 +52,7 @@ interface TransactionRepository {
     fun insert(
         userId: UUID,
         amount: BigDecimal,
-        category: String,
+        categoryId: UUID,
         description: String?,
         idempotencyKey: String?,
         occurredAt: Instant,
@@ -65,15 +64,15 @@ class TransactionRepositoryImpl : TransactionRepository {
         userId: UUID,
         page: Int,
         size: Int,
-        category: String?,
+        categoryId: UUID?,
     ): Pair<List<TransactionRow>, Long> =
         transaction {
             fun buildQuery() =
                 Transactions.selectAll()
                     .where { Transactions.userId eq userId }
                     .let { q ->
-                        if (category != null) {
-                            q.andWhere { Transactions.category.lowerCase() eq category.lowercase() }
+                        if (categoryId != null) {
+                            q.andWhere { Transactions.categoryId eq categoryId }
                         } else {
                             q
                         }
@@ -103,7 +102,7 @@ class TransactionRepositoryImpl : TransactionRepository {
     override fun insert(
         userId: UUID,
         amount: BigDecimal,
-        category: String,
+        categoryId: UUID,
         description: String?,
         idempotencyKey: String?,
         occurredAt: Instant,
@@ -114,12 +113,12 @@ class TransactionRepositoryImpl : TransactionRepository {
                 it[Transactions.id] = newId
                 it[Transactions.userId] = userId
                 it[Transactions.amount] = amount
-                it[Transactions.category] = category
+                it[Transactions.categoryId] = categoryId
                 it[Transactions.description] = description
                 it[Transactions.idempotencyKey] = idempotencyKey
                 it[Transactions.occurredAt] = occurredAt
             }
-            TransactionRow(newId, userId, amount, category, description, idempotencyKey, occurredAt)
+            TransactionRow(newId, userId, amount, categoryId, description, idempotencyKey, occurredAt)
         }
 }
 
@@ -128,7 +127,7 @@ private fun ResultRow.toTransactionRow() =
         id = this[Transactions.id],
         userId = this[Transactions.userId],
         amount = this[Transactions.amount],
-        category = this[Transactions.category],
+        categoryId = this[Transactions.categoryId],
         description = this[Transactions.description],
         idempotencyKey = this[Transactions.idempotencyKey],
         occurredAt = this[Transactions.occurredAt],

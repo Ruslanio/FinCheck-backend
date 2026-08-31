@@ -15,6 +15,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
@@ -46,7 +47,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             val userId = UUID.randomUUID().toString()
             coEvery { authService.register("new@example.com", "password123") } returns
@@ -69,7 +70,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.register("dup@example.com", "password123") } returns
                 RegisterResult.EmailAlreadyRegistered
@@ -90,7 +91,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.register("not-an-email", "password123") } returns
                 RegisterResult.InvalidEmail
@@ -111,7 +112,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.register("user@example.com", "short") } returns
                 RegisterResult.PasswordTooShort
@@ -132,7 +133,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             val userId = UUID.randomUUID().toString()
             val key = Keys.hmacShaKeyFor(TEST_JWT_SECRET.toByteArray())
@@ -177,7 +178,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.login("user@example.com", "wrongpass") } returns
                 LoginResult.InvalidCredentials
@@ -198,7 +199,7 @@ class AuthRouteTest {
         testApplication {
             application {
                 configureSerialization()
-                configureAuthRouting(authService)
+                routing { authRoutes(authService) }
             }
             coEvery { authService.login("nobody@example.com", "password123") } returns
                 LoginResult.InvalidCredentials

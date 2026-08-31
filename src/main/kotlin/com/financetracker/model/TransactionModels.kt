@@ -23,7 +23,7 @@ object InstantSerializer : KSerializer<Instant> {
 @Serializable
 data class CreateTransactionRequest(
     val amount: Double,
-    val category: String,
+    val categoryId: String,
     val description: String? = null,
     val idempotencyKey: String? = null,
     @Serializable(with = InstantSerializer::class)
@@ -35,7 +35,7 @@ data class TransactionResponse(
     val id: String,
     val userId: String,
     val amount: Double,
-    val category: String,
+    val categoryId: String,
     val description: String?,
     val idempotencyKey: String?,
     @Serializable(with = InstantSerializer::class)
@@ -55,7 +55,7 @@ fun TransactionRow.toResponse() =
         id = id.toString(),
         userId = userId.toString(),
         amount = amount.toDouble(),
-        category = category,
+        categoryId = categoryId.toString(),
         description = description,
         idempotencyKey = idempotencyKey,
         occurredAt = occurredAt,
